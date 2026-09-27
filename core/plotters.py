@@ -140,13 +140,35 @@ def _compute_transition_bins(df: pd.DataFrame, delta_log10: float = 0.25):
 # ==========================================
 # MOD-03: Discrete Transition Matrix (Counts)
 # ==========================================
-def get_mod03_code(station_name: str) -> str:
+def get_mod03_code(station_name: str, delta_log10: float = 0.25) -> str:
     return f"""import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-fig, ax = plt.subplots(figsize=(7, 7), dpi=300)
+# 1. Filter and determine range
+plot_df = df[(df['Q_t'] > 0) & (df['Q_next'] > 0)].copy()
+min_flow = min(plot_df['Q_t'].min(), plot_df['Q_next'].min())
+max_flow = max(plot_df['Q_t'].max(), plot_df['Q_next'].max())
+
+# 2. Bin configuration (delta_log10 = {delta_log10})
+start_dec = np.floor(np.log10(min_flow))
+end_dec = np.ceil(np.log10(max_flow))
+log_bins = np.arange(start_dec, end_dec + {delta_log10}, {delta_log10})
+bin_edges = 10.0 ** log_bins
+
+# 3. Discretize and compute transition counts
+plot_df['x_bin'] = np.digitize(plot_df['Q_t'], bin_edges) - 1
+plot_df['y_bin'] = np.digitize(plot_df['Q_next'], bin_edges) - 1
+
 num_bins = len(bin_edges) - 1
+matrix = np.zeros((num_bins, num_bins), dtype=float)
+for _, row in plot_df.iterrows():
+    xi, yi = int(row['x_bin']), int(row['y_bin'])
+    if 0 <= xi < num_bins and 0 <= yi < num_bins:
+        matrix[yi, xi] += 1
+
+# 4. Render Figure
+fig, ax = plt.subplots(figsize=(7, 7), dpi=300)
 
 # 1:1 Identity Line
 ax.plot([bin_edges[0], bin_edges[-1]], [bin_edges[0], bin_edges[-1]], color='#000000', linewidth=1.0, linestyle='-', zorder=2)
@@ -186,9 +208,8 @@ ax.set_title("MOD-03: Discrete Transition Matrix (Raw Counts)\\n{station_name}",
 """
 
 def plot_mod03_matrix(df: pd.DataFrame, station_name: str = "Streamflow Station"):
-    matrix, bin_edges, _, _ = _compute_transition_bins(df)
     code = get_mod03_code(station_name)
-    local_env = {"matrix": matrix, "bin_edges": bin_edges, "plt": plt, "ticker": ticker, "np": np}
+    local_env = {"df": df.copy(), "plt": plt, "ticker": ticker, "np": np}
     exec(code, local_env)
     return local_env.get("fig", plt.gcf()), code
 
