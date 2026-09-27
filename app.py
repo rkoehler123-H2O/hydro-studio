@@ -221,6 +221,9 @@ with col_right:
                     )
                     
                    # Robust generation handler with retry logic
+import time
+
+# Robust generation handler with retry logic
 max_retries = 3
 response = None
 
@@ -244,10 +247,7 @@ with st.spinner("AI is adapting the plot code..."):
             else:
                 st.error("The AI service is experiencing high traffic. Please wait a few seconds and click 'Apply AI Edit' again.")
                 st.stop()
-Why this changes everything for your workshop:
-Self-Healing: A temporary 503 capacity blip will silently pause for 2 seconds and retry automatically without the student even noticing.
-Clean UI: If all retries fail, it stops execution cleanly and displays a friendly notice rather than a raw Python traceback.
-For now, clicking "Apply AI Edit" one more time right now will almost certainly succeed.
+
                     
                     new_code = extract_code(response.text)
                     try:
