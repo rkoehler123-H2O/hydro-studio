@@ -171,13 +171,16 @@ if "current_code" not in st.session_state or st.sidebar.button("Generate Baselin
 # ---------------------------------------------------------
 st.subheader("Visual Output")
 try:
-    exec_scope = {
-        "df": st.session_state["df"],
-        "pd": pd,
-        "plt": plt,
-        "st": st,
-    }
-    exec(st.session_state["current_code"], exec_scope)
+    import numpy as np
+
+exec_scope = {
+    "df": st.session_state["df"],
+    "pd": pd,
+    "np": np,
+    "plt": plt,
+    "st": st,
+}
+exec(st.session_state["current_code"], exec_scope)
 except Exception as e:
     st.error(f"Execution Error in Generated Plotting Routine: {e}")
 
