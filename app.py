@@ -200,14 +200,59 @@ with col_btn:
     apply_ai = st.button("Apply AI Edit", type="primary")
 
 if apply_ai and custom_instruction:
-    full_prompt = f"""
-You are an expert Python data visualization developer specializing in hydrology and Matplotlib.
-Below is an existing Streamlit Matplotlib script and a user instruction to modify the plot.
+    existing_code = st.session_state.get("current_code", "")
+    date_col_name = st.session_state.get("date_col", "")
+    flow_col_name = st.session_state.get("flow_col", "")
 
-The dataframe `df` is already loaded with columns:
-- Date column: '{st.session_state['date_col']}' (datetime format)
-- Flow column: '{st.session_state['flow_col']}' (numeric discharge)
+    full_prompt = (
+        "You are an expert Python data visualization developer specializing in hydrology and Matplotlib.\n"
+        "Below is an existing Streamlit Matplotlib script and a user instruction to modify the plot.\n\n"
+        f"The dataframe `df` is already loaded with columns:\n"
+        f"- Date column: '{date_col_name}' (datetime format)\n"
+        f"- Flow column: '{flow_col_name}' (numeric discharge)\n\n"
+        "Existing script:\n"
+        "```python\n"
+        + existing_code + "\n"
+        "```\n\n"
+        f"User instruction:\n\"{custom_instruction}\"\n\n"
+        "Requirements:\n"
+        "1. Modify the script to satisfy the instruction cleanly.\n"
+        "2. Maintain publication quality: Arial/DejaVu Sans style, external legend placement, standard gridlines.\n"
+        "3. Must render via `st.pyplot(fig)` and end with `plt.close(fig)`.\n"
+        "4. Output ONLY valid, executable Python code enclosed within standard ```python ``` blocks. No introductory or trailing markdown prose."
+    )
 
-Existing script:
-```python
-{st.session_state["current_code"]}
+    max_retries = 3
+    response = None
+
+    with st.spinner("AI is adapting the plot code..."):
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                    )
+                )
+                break
+            except Exception as e:
+                err_msg = str(e)
+                if any(code in err_msg for code in ["503", "500", "429", "UNAVAILABLE"]) and attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                else:
+                    st.error("The AI service is experiencing high traffic. Please wait a few seconds and click 'Apply AI Edit' again.")
+                    st.stop()
+
+    if response and response.text:
+        extracted = re.search(r"```python\s*(.*?)\s*```", response.text, re.DOTALL)
+        clean_code = extracted.group(1) if extracted else response.text.replace("```", "").strip()
+        st.session_state["current_code"] = clean_code
+        st.rerun()
+
+# ---------------------------------------------------------
+# Code Drawer / Debug Inspector
+# ---------------------------------------------------------
+with st.expander("Inspect Current Python Routine"):
+    st.code(st.session_state.get("current_code", ""), language="python")
