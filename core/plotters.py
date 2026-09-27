@@ -115,7 +115,7 @@ def plot_mod02_lag1(df: pd.DataFrame, station_name: str = "Streamflow Station"):
 # ==========================================
 # Helper: Discrete Transition Matrix Engine
 # ==========================================
-def _compute_transition_bins(df: pd.DataFrame, delta_log10: float = 0.10):
+def _compute_transition_bins(df: pd.DataFrame, delta_log10: float = 0.25):
     plot_df = df[(df['Q_t'] > 0) & (df['Q_next'] > 0)].copy()
     min_flow = min(plot_df['Q_t'].min(), plot_df['Q_next'].min())
     max_flow = max(plot_df['Q_t'].max(), plot_df['Q_next'].max())
