@@ -3,6 +3,7 @@ import time
 import re
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 # Google GenAI SDK
@@ -171,16 +172,14 @@ if "current_code" not in st.session_state or st.sidebar.button("Generate Baselin
 # ---------------------------------------------------------
 st.subheader("Visual Output")
 try:
-    import numpy as np
-
-exec_scope = {
-    "df": st.session_state["df"],
-    "pd": pd,
-    "np": np,
-    "plt": plt,
-    "st": st,
-}
-exec(st.session_state["current_code"], exec_scope)
+    exec_scope = {
+        "df": st.session_state["df"],
+        "pd": pd,
+        "np": np,
+        "plt": plt,
+        "st": st,
+    }
+    exec(st.session_state["current_code"], exec_scope)
 except Exception as e:
     st.error(f"Execution Error in Generated Plotting Routine: {e}")
 
@@ -221,8 +220,10 @@ if apply_ai and custom_instruction:
         "Requirements:\n"
         "1. Modify the script to satisfy the instruction cleanly.\n"
         "2. Maintain publication quality: Arial/DejaVu Sans style, external legend placement, standard gridlines.\n"
-        "3. Must render via `st.pyplot(fig)` and end with `plt.close(fig)`.\n"
-        "4. Output ONLY valid, executable Python code enclosed within standard ```python ``` blocks. No introductory or trailing markdown prose."
+        "3. Explicitly import all necessary libraries (such as `import numpy as np` or `import matplotlib.dates as mdates`).\n"
+        "4. Explicitly compute and define every variable, array, and intermediate calculation (such as bin edges, masks, or statistical quantiles) BEFORE referencing them.\n"
+        "5. Must render via `st.pyplot(fig)` and end with `plt.close(fig)`.\n"
+        "6. Output ONLY valid, executable Python code enclosed within standard ```python ``` blocks. No introductory or trailing markdown prose."
     )
 
     max_retries = 3
