@@ -220,14 +220,34 @@ with col_right:
                         + "Return the complete, rewritten Python code applying this modification."
                     )
                     
-                    response = client.models.generate_content(
-                        model="gemini-3.8-flash",
-                        contents=full_prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_prompt,
-                            temperature=0.1
-                        )
-                    )
+                   # Robust generation handler with retry logic
+max_retries = 3
+response = None
+
+with st.spinner("AI is adapting the plot code..."):
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.8-flash",
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    # keep your existing config parameters here
+                )
+            )
+            break
+        except Exception as e:
+            err_str = str(e)
+            # If server is overloaded (503/500) or rate-limited (429), retry after a short pause
+            if any(code in err_str for code in ["503", "500", "429", "UNAVAILABLE"]) and attempt < max_retries - 1:
+                time.sleep(2 * (attempt + 1))  # waits 2s, then 4s
+                continue
+            else:
+                st.error("The AI service is experiencing high traffic. Please wait a few seconds and click 'Apply AI Edit' again.")
+                st.stop()
+Why this changes everything for your workshop:
+Self-Healing: A temporary 503 capacity blip will silently pause for 2 seconds and retry automatically without the student even noticing.
+Clean UI: If all retries fail, it stops execution cleanly and displays a friendly notice rather than a raw Python traceback.
+For now, clicking "Apply AI Edit" one more time right now will almost certainly succeed.
                     
                     new_code = extract_code(response.text)
                     try:
