@@ -353,7 +353,7 @@ def run_mod07(df, date_col, value_col):
     mesh = ax.imshow(
         np.maximum(0.001, pivot.values),
         aspect="auto",
-        cmap=usgs_cmap_r,
+        cmap=usgs_cmap,
         norm=norm,
         origin="lower",
         extent=[0.5, 366.5, -0.5, len(years) - 0.5]
