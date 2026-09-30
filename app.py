@@ -1,6 +1,6 @@
 """
 Hydro-Studio: Hydrological Visual Analytics & Graphics Engine
-Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.5)
+Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.51)
 © Visual Data Analytics, LLC (2026.1 )
 """
 
@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib.colors import Normalize
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.gridspec import GridSpec
 import streamlit as st
 
