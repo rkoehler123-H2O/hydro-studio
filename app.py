@@ -1,6 +1,6 @@
 """
 Hydro-Studio: Hydrological Visual Analytics & Graphics Engine
-Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.3)
+Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.5)
 © Visual Data Analytics, LLC (2026)
 """
 
