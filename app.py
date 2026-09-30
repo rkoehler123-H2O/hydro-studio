@@ -209,23 +209,27 @@ with col_right:
                         + f'"{user_prompt}"\n\n'
                         + "Return the complete, rewritten Python code applying this modification."
                     )
-                    
+                try: 
                     response = client.models.generate_content(
                         model="gemini-2.5-flash",
                         contents=full_prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=system_prompt,
-                            temperature=0.1
-                        )
+                            temperature=0.1,
+                        ),
                     )
-                    
-                    new_code = extract_code(response.text)
-                    try:
-                        updated_fig = execute_code(new_code, st.session_state.processed_df)
-                        st.session_state.current_fig = updated_fig
-                        st.session_state.current_code = new_code
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error executing AI modified code: {e}")
-                        with st.expander("Inspect Generated Code"):
-                            st.code(new_code, language="python")
+                except Exception as e:
+                    st.error(f"Actual API Error: {e}")
+                    st.stop()
+                        
+                new_code = extract_code(response.text)
+                
+                try:
+                    updated_fig = execute_code(new_code, st.session_state.processed_df)
+                    st.session_state.current_fig = updated_fig
+                    st.session_state.current_code = new_code
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error executing AI modified code: {e}")
+                    with st.expander("Inspect Generated Code"):
+                        st.code(new_code, language="python")
