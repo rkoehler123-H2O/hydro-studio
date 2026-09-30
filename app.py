@@ -688,16 +688,16 @@ def run_mod12(df, date_col, value_col):
 MODULE_REGISTRY = {
     "MOD-01: Enhanced Flow Duration Curve (eFDC)": run_mod01,
     "MOD-02: Lag-1 Streamflow Scatter Plot": run_mod02,
-    "MOD-03: Chronological Log10 Hydrograph": run_mod03,
-    "MOD-04: Water Year Overlay Hydrograph": run_mod04,
-    "MOD-05: Discrete State Transition Matrix": run_mod05,
-    "MOD-06: Absolute Differential Hydrograph (|dQ/dt|)": run_mod06,
+    "MOD-03: Discrete Transition Matrix (Raw Frequency Counts)": run_mod03,
+    "MOD-04: Conditional Forecast Probability Matrix": run_mod04,
+    "MOD-05: Conditional Antecedent Probability Matrix": run_mod05,
+    "MOD-06: Sequential Flow Duration & Persistence": run_mod06,
     "MOD-07: Chronological Raster Hydrograph": run_mod07,
-    "MOD-08: Annual Flow Volume Ranked Raster": run_mod08,
-    "MOD-09: Rate-of-Change vs Streamflow Scatter": run_mod09,
-    "MOD-10: Exceedance Probability Duration Matrix": run_mod10,
-    "MOD-11: Decile Transition Persistence Matrix": run_mod11,
-    "MOD-12: Composite Quad-Panel Dashboard": run_mod12,
+    "MOD-08: Volumetric Raster Hydrograph": run_mod08,
+    "MOD-09: Annual FDC Spaghetti Plot": run_mod09,
+    "MOD-10: Annual FDC Threshold Trends": run_mod10,
+    "MOD-11: Annual FDC Volumetric Thresholds": run_mod11,
+    "MOD-12: Composite Hydroinformatics Dashboard": run_mod12,
 }
 
 
