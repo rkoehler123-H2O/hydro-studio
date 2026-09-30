@@ -925,8 +925,26 @@ with col_right:
         ]
     )
 
-    structured_prompt = f"""I have working, verified Python code for a hydrological {prompt_name}.
+    # Workshop AI Copilot Prompt Block (Clean String Syntax)
+    f_ticks = "```"
+    prompt_lines = [
+        f"I have working, verified Python code for a hydrological {prompt_name}.",
+        "",
+        "Here is the baseline script:",
+        f"{f_ticks}python",
+        current_code,
+        f_ticks,
+        "",
+        "Please modify this script to achieve the following objective:",
+        f"**Goal:** {custom_goal}",
+        "",
+        "**Formatting & Hydroinformatics Constraints:**",
+        "- Maintain strict sans-serif typography (DejaVu Sans or Arial).",
+        "- Place all legends outside the active plotting frame.",
+        "- Ensure rising limb values (+dQ/dt) remain above the 1:1 equilibrium line, and falling limbs (-dQ/dt) remain below it.",
+        "- Keep Day 152 reserved for Feb 29 leap-year indexing across 366-day arrays.",
+        "- Return only executable Python code enclosed in a single markdown block."
+    ]
+    structured_prompt = "\n".join(prompt_lines)
 
-Here is the baseline script:
-```python
-{current_code}
+    st.text_area("Ready-to-Use Prompt:", value=structured_prompt, height=260)
