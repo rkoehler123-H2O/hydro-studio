@@ -1,6 +1,6 @@
 """
 Hydro-Studio: Hydrological Visual Analytics & Graphics Engine
-Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.2)
+Based on: Operational Modular Data Evaluation and Prompt Library (Version v8.3)
 © Visual Data Analytics, LLC (2026)
 """
 
@@ -57,10 +57,10 @@ def prepare_pairs_and_dowy(df, date_col, value_col):
     df_clean[date_col] = pd.to_datetime(df_clean[date_col])
     df_clean = df_clean.sort_values(by=date_col).reset_index(drop=True)
     
-    # Discharge must be positive
+    # Physical Flow Bounds: Discharge must be positive
     df_clean = df_clean[df_clean[value_col] > 0].copy()
     
-    # Check 1-day temporal continuity: dQ/dt = Q(t+1) - Q(t)
+    # Axiomatic 1-day temporal continuity: dQ/dt = Q(t+1) - Q(t)
     dt = df_clean[date_col].diff().dt.total_seconds() / 86400.0
     valid_pair = (dt == 1.0)
     
@@ -68,7 +68,7 @@ def prepare_pairs_and_dowy(df, date_col, value_col):
     df_clean["Q_next"] = df_clean[value_col].shift(-1)
     df_clean["valid_pair"] = valid_pair.shift(-1).fillna(False)
     
-    # Water Year and 366-day calendar alignment
+    # Water Year and 366-day calendar alignment (Feb 29 = Day 152)
     month = df_clean[date_col].dt.month
     day = df_clean[date_col].dt.day
     year = df_clean[date_col].dt.year
@@ -125,6 +125,7 @@ def run_mod01(df, date_col, value_col):
     ax.set_yscale("log")
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}"))
     ax.set_xlim(0, 100)
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=100))
     ax.set_xlabel("Exceedance Percentage (%)", fontsize=10, fontweight="bold")
     ax.set_ylabel(f"Discharge ({value_col})", fontsize=10, fontweight="bold")
@@ -220,7 +221,7 @@ def run_mod03(df, date_col, value_col):
                 elif j < i:
                     col = "#FF0000"  # Falling
                 else:
-                    col = "#000000"  # Diagonal
+                    col = "#000000"  # Steady State Diagonal
                 bbox_prop = dict(boxstyle="square,pad=0.15", facecolor="#ffffff", edgecolor="none", alpha=0.9) if i == j else None
                 ax.text(xc, yc, str(cnt), color=col, fontsize=6.5, fontweight="bold", ha="center", va="center", bbox=bbox_prop)
 
@@ -249,7 +250,6 @@ def run_mod04(df, date_col, value_col):
     counts, xedges, yedges, log_min, log_max = calculate_transition_matrix(df, date_col, value_col)
     num_bins = len(xedges) - 1
     
-    # Column-normalized (each column sum = 100%)
     col_sums = counts.sum(axis=1, keepdims=True)
     prob = np.divide(counts, col_sums, out=np.zeros_like(counts), where=col_sums != 0) * 100.0
 
@@ -289,7 +289,6 @@ def run_mod05(df, date_col, value_col):
     counts, xedges, yedges, log_min, log_max = calculate_transition_matrix(df, date_col, value_col)
     num_bins = len(xedges) - 1
     
-    # Row-normalized (each row sum = 100%)
     row_sums = counts.sum(axis=0, keepdims=True)
     prob = np.divide(counts, row_sums, out=np.zeros_like(counts), where=row_sums != 0) * 100.0
 
@@ -329,7 +328,6 @@ def run_mod06(df, date_col, value_col):
     df_clean = df.dropna(subset=[date_col, value_col]).sort_values(by=date_col).copy()
     q = df_clean[value_col].values
     
-    # 0.20 log-bin discretization for run persistence
     log_q = np.floor(np.log10(q) / 0.20) * 0.20
     runs = []
     curr_bin = log_q[0]
@@ -355,7 +353,6 @@ def run_mod06(df, date_col, value_col):
     ax.set_ylim(0, max_dur)
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:g}"))
     
-    # Major 7-day increments, minor 1-day increments
     ax.yaxis.set_major_locator(ticker.MultipleLocator(7))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
     ax.grid(True, which="major", color="#000000", linestyle="-", lw=0.9)
@@ -387,7 +384,6 @@ def run_mod07(df, date_col, value_col):
     cbar = plt.colorbar(mesh, ax=ax, pad=0.03)
     cbar.set_label(f"Discharge ({value_col}) [Log10 Scale]", fontsize=9, fontweight="bold")
 
-    # Calendar divider dashed lines
     for t in MONTH_TICKS_366[1:]:
         ax.axvline(t - 0.5, color="#000000", linestyle="--", lw=0.75, alpha=0.7)
 
@@ -395,7 +391,6 @@ def run_mod07(df, date_col, value_col):
     ax.set_xticklabels(MONTH_LABELS, fontsize=9, fontweight="bold")
     ax.set_xlim(1, 366)
     
-    # 5-year solid major intervals, 1-year minor ticks
     ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
     ax.grid(True, which="major", axis="y", color="#000000", linestyle="-", lw=0.8)
@@ -413,7 +408,6 @@ def run_mod07(df, date_col, value_col):
 def run_mod08(df, date_col, value_col):
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
     
-    # Annual volume calculation
     annual_vol = df_clean.groupby("WaterYear")[value_col].sum().sort_values(ascending=False)
     ranked_wy = annual_vol.index
     
@@ -439,7 +433,6 @@ def run_mod08(df, date_col, value_col):
     ax.set_xticklabels(MONTH_LABELS, fontsize=9, fontweight="bold")
     ax.set_xlim(1, 366)
     
-    # Major ticks at Rank 1 and multiples of 10
     n_ranks = len(ranked_wy)
     major_ranks = [1] + [r for r in range(10, n_ranks + 1, 10)]
     ax.set_yticks(major_ranks)
@@ -624,7 +617,7 @@ def run_mod12(df, date_col, value_col):
 # Sidebar Controls & Routing
 # ---------------------------------------------------------
 st.sidebar.title("🌊 Hydro-Studio")
-st.sidebar.markdown("**Operational Modular Visual Analytics (v8.2)**")
+st.sidebar.markdown("**Operational Modular Visual Analytics (v8.3)**")
 st.sidebar.caption("Visual Data Analytics, LLC (© VDA, 2026)")
 st.sidebar.markdown("---")
 
@@ -671,14 +664,30 @@ modules = {
 selected_module = st.sidebar.selectbox("Select Operational Module", list(modules.keys()))
 
 # ---------------------------------------------------------
+# Controlled Execution: "Generate Plot" Action Button
+# ---------------------------------------------------------
+st.sidebar.markdown("---")
+generate_clicked = st.sidebar.button("🚀 Generate Plot", type="primary", use_container_width=True)
+
+if "active_fig" not in st.session_state:
+    st.session_state.active_fig = None
+if "active_module" not in st.session_state:
+    st.session_state.active_module = None
+
+if generate_clicked:
+    with st.spinner("Processing hydrology data and rendering graphic..."):
+        module_func = modules[selected_module]
+        st.session_state.active_fig = module_func(df_current, date_col, val_col)
+        st.session_state.active_module = selected_module
+
+# ---------------------------------------------------------
 # Main Panel Display
 # ---------------------------------------------------------
-module_func = modules[selected_module]
-fig = module_func(df_current, date_col, val_col)
-st.pyplot(fig)
-
-# Clean, unobtrusive footer export
-with st.expander("📋 View Standalone Script & Execution Notes"):
-    st.markdown(f"**Routine:** {selected_module}")
-    st.caption("Deterministic baseline executed under Visual Data Analytics (v8.2) standards.")
-    st.info("To modify this graphic, copy the underlying mathematical routine into your local Python workbench or preferred AI assistant.")
+if st.session_state.active_fig is not None:
+    st.pyplot(st.session_state.active_fig)
+    
+    with st.expander("📋 View Operational Module Metadata"):
+        st.markdown(f"**Routine:** {st.session_state.active_module}")
+        st.caption("Rendered under Visual Data Analytics, LLC Operational Library standards (v8.3).")
+else:
+    st.info("👈 Select your operational module in the sidebar and click **'Generate Plot'** to render the visualization.")
