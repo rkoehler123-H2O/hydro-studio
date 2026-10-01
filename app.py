@@ -537,34 +537,58 @@ def run_mod08(df, date_col, value_col):
 
 
 def run_mod09(df, date_col, value_col):
-    """MOD-09: Log10 Rate-of-Change vs Flow Scatter Plot."""
+    """MOD-09: Annual FDC Spaghetti Plot."""
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
-    df_pairs = df_clean[df_clean["valid_pair"]].copy()
+    
+    # 1. Master Period of Record FDC
+    n_total = len(df_clean)
+    sorted_total = np.sort(df_clean[value_col].values)[::-1]
+    prob_total = (np.arange(1, n_total + 1) / (n_total + 1)) * 100.0
 
-    df_pairs["diff"] = df_pairs["Q_next"] - df_pairs["Q_t"]
-    df_pairs["abs_diff"] = np.abs(df_pairs["diff"])
-    df_pairs = df_pairs[df_pairs["abs_diff"] > 0]
+    # 2. Distinct Water Years
+    years = np.sort(df_clean["WaterYear"].unique())
+    min_wy, max_wy = years.min(), years.max()
 
-    fig, ax = plt.subplots(figsize=(9, 7))
+    fig, ax = plt.subplots(figsize=(9, 6))
 
-    rising = df_pairs[df_pairs["diff"] > 0]
-    falling = df_pairs[df_pairs["diff"] < 0]
+    cmap = plt.cm.get_cmap("Spectral_r")
+    norm = Normalize(vmin=min_wy, vmax=max_wy)
 
-    ax.scatter(rising["Q_t"], rising["abs_diff"], color="#1f77b4", s=12, alpha=0.5, label="Rising Limb (+dQ/dt)", zorder=3)
-    ax.scatter(falling["Q_t"], falling["abs_diff"], color="#d62728", s=12, alpha=0.5, label="Falling Limb (-dQ/dt)", zorder=3)
+    # 3. Plot each annual flow duration curve
+    for wy in years:
+        sub = df_clean[df_clean["WaterYear"] == wy]
+        if len(sub) < 30:  # Ignore incomplete/fragmented year records
+            continue
+        n_wy = len(sub)
+        sorted_wy = np.sort(sub[value_col].values)[::-1]
+        prob_wy = (np.arange(1, n_wy + 1) / (n_wy + 1)) * 100.0
+        ax.plot(prob_wy, sorted_wy, color=cmap(norm(wy)), lw=0.9, alpha=0.35, zorder=2)
 
-    ax.set_xscale("log")
+    # 4. Master baseline curve in bold black
+    ax.plot(prob_total, sorted_total, color="#000000", lw=2.0, label="Period of Record", zorder=4)
+
+    # 5. Logarithmic Y-axis with base-10 standard integer/decimal notation
     ax.set_yscale("log")
+    ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
-    for a in [ax.xaxis, ax.yaxis]:
-        a.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
-        a.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
+    # 6. Linear X-axis (0% to 100% exceedance)
+    ax.set_xlim(0, 100)
+    ax.set_xticks(range(0, 101, 10))
 
     apply_standard_grid(ax)
-    ax.set_xlabel(f"Q(t) ({value_col}) [cfs]", fontsize=10, fontweight="bold")
-    ax.set_ylabel("|dQ/dt| (cfs/day)", fontsize=10, fontweight="bold")
-    ax.set_title("MOD-09: Rate-of-Change vs Streamflow Scatter", fontsize=12, fontweight="bold", pad=28)
-    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=2, frameon=False, fontsize=9)
+
+    ax.set_xlabel("Exceedance Probability (%)", fontsize=10, fontweight="bold")
+    ax.set_ylabel(f"Discharge ({value_col}) [cfs]", fontsize=10, fontweight="bold")
+    ax.set_title("MOD-09: Annual FDC Spaghetti Plot", fontsize=12, fontweight="bold", pad=28)
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.01), frameon=False, fontsize=9)
+
+    # 7. Exterior Colorbar for Water Year
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.03)
+    cbar.set_label("Water Year", fontsize=10, fontweight="bold")
+    cbar.ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     fig.tight_layout()
     return fig
