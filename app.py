@@ -453,12 +453,18 @@ def run_mod08(df, date_col, value_col):
     """MOD-08: Annual Flow Volume Ranked Raster Hydrograph."""
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
 
-    # Rank by total annual water volume (sum of Q across Water Year)
+    # 1. Calculate cumulative annual flow volume per water year
     wy_totals = df_clean.groupby("WaterYear")[value_col].sum()
-    ranked_wy = wy_totals.sort_values(ascending=True).index.values
 
+    # Rank: 1 = Wettest (largest volume) descending to Driest (smallest volume)
+    # Ranked array from Wettest (Rank 1) to Driest (Rank N)
+    ranked_wy_descending = wy_totals.sort_values(ascending=False).index.values
+    n_years = len(ranked_wy_descending)
+
+    # Reindex pivot matrix: top row (index 0 in imshow default lower-origin) needs to be Rank 1
+    # When origin='upper', row 0 is at the top of the canvas.
     pivot = df_clean.pivot(index="WaterYear", columns="Standard_DOWY", values=value_col)
-    pivot = pivot.reindex(index=ranked_wy, columns=range(1, 367))
+    pivot = pivot.reindex(index=ranked_wy_descending, columns=range(1, 367))
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
@@ -466,36 +472,57 @@ def run_mod08(df, date_col, value_col):
     vmax = 10 ** np.ceil(np.log10(df_clean[value_col].max()))
     norm = LogNorm(vmin=vmin, vmax=vmax)
 
+    # 2. Render raster with origin='upper' so Rank 1 sits at the top (y=1)
+    # Extent: X from DOWY 0.5 to 366.5; Y from Rank 0.5 (top) to n_years + 0.5 (bottom)
     mesh = ax.imshow(
         np.maximum(0.001, pivot.values),
         aspect="auto",
-        cmap=usgs_cmap,
+        cmap=usgs_cmap_r,
         norm=norm,
-        origin="lower",
-        extent=[0.5, 366.5, -0.5, len(ranked_wy) - 0.5]
+        origin="upper",
+        extent=[0.5, 366.5, n_years + 0.5, 0.5]  # Inverts Y so 1 is at top, N at bottom
     )
 
+    # 3. Exterior Colorbar with Base-10 Standard Notation
     cbar = fig.colorbar(mesh, ax=ax, pad=0.03)
     cbar.set_label(f"Discharge ({value_col}) [cfs]", fontsize=10, fontweight="bold")
     cbar.ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
     cbar.ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
-    # Dynamic leap-adjusted dividers on ranked rows
-    draw_leap_adjusted_dividers(ax, ranked_wy, is_ranked=True)
+    # 4. Dynamic leap-adjusted dividers mapped row-by-row to ranked order
+    # row 0 (top) corresponds to ranked_wy_descending[0]
+    for idx, wy in enumerate(ranked_wy_descending):
+        rank = idx + 1
+        y_top = rank - 0.5
+        y_bottom = rank + 0.5
+        is_leap = calendar.isleap(int(wy))
+        offset = 1.0 if is_leap else 0.0
 
-    y_indices = np.arange(len(ranked_wy))
-    major_mask = [(y % 5 == 0) for y in ranked_wy]
-    ax.set_yticks(y_indices[major_mask])
-    ax.set_yticklabels(ranked_wy[major_mask], fontsize=9)
-    ax.set_yticks(y_indices, minor=True)
+        # Pre-March dividers (constant across all years)
+        for x in [31.5, 61.5, 92.5, 123.5]:
+            ax.plot([x, x], [y_top, y_bottom], color="#000000", linestyle="--", lw=0.75, zorder=3)
+
+        # Post-February dividers (+1 day step on leap years)
+        for base_x in [151.5, 182.5, 212.5, 243.5, 273.5, 304.5, 335.5]:
+            x = base_x + offset
+            ax.plot([x, x], [y_top, y_bottom], color="#000000", linestyle="--", lw=0.75, zorder=3)
+
+    # 5. Y-Axis: Integer Ranks (Rank 1 at top, multiples of 10, minor ticks at every integer rank)
+    major_ranks = [1] + [r for r in range(10, n_years + 1, 10)]
+    ax.set_yticks(major_ranks)
+    ax.set_yticklabels(major_ranks, fontsize=9)
+    ax.set_yticks(range(1, n_years + 1), minor=True)
+
+    ax.set_ylim(n_years + 0.5, 0.5)  # Enforce Rank 1 at top, N at bottom
     ax.grid(True, which="major", axis="y", color="#000000", linestyle="-", lw=0.8, zorder=2)
     ax.grid(False, which="minor", axis="y")
 
+    # 6. X-Axis: Standardized DOWY and Top Month Labels
     ax.set_xlim(0.5, 366.5)
     ax.set_xticks(range(50, 366, 50))
     ax.set_xticks(range(10, 366, 10), minor=True)
     ax.set_xlabel("Day of Water Year (Starting October 1)", fontsize=10, fontweight="bold")
-    ax.set_ylabel("Water Year (Ranked by Annual Volume: Driest to Wettest)", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Volumetric Rank (1 = Greatest Annual Volume)", fontsize=10, fontweight="bold")
 
     month_centers = [16.0, 46.5, 77.0, 108.0, 138.0, 168.0, 198.5, 229.0, 259.5, 290.0, 321.0, 351.5]
     ax_top = ax.twiny()
@@ -504,7 +531,7 @@ def run_mod08(df, date_col, value_col):
     ax_top.set_xticklabels(MONTH_LABELS, fontsize=9, fontweight="bold")
     ax_top.tick_params(length=0, pad=4)
 
-    ax.set_title("MOD-08: Annual Volume Ranked Raster Hydrograph", fontsize=12, fontweight="bold", pad=32)
+    ax.set_title("MOD-08: Annual Flow Volume Ranked Raster Hydrograph", fontsize=12, fontweight="bold", pad=32)
     fig.tight_layout()
     return fig
 
