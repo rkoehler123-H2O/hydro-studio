@@ -719,21 +719,26 @@ def run_mod12(df, date_col, value_col):
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
     df_pairs = df_clean[df_clean["valid_pair"]].copy()
 
-    fig = plt.figure(figsize=(16, 12))
-    gs = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.25)
-
-    # -----------------------------------------------------
-    # Panel A (Top-Left): MOD-02 Lag-1 Scatterplot (1:1 Ratio)
-    # -----------------------------------------------------
-    ax_a = fig.add_subplot(gs[0, 0])
+    # Dynamic global logarithmic cycles spanning the full series
     min_v = min(df_pairs["Q_t"].min(), df_pairs["Q_next"].min())
     max_v = max(df_pairs["Q_t"].max(), df_pairs["Q_next"].max())
-    log_min = 10 ** np.floor(np.log10(min_v))
-    log_max = 10 ** np.ceil(np.log10(max_v))
+    dec_min = int(np.floor(np.log10(min_v)))
+    dec_max = int(np.ceil(np.log10(max_v)))
+    log_min = 10 ** dec_min
+    log_max = 10 ** dec_max
 
+    fig = plt.figure(figsize=(18, 14))
+    gs = GridSpec(2, 2, figure=fig, hspace=0.36, wspace=0.24)
+
+    # -----------------------------------------------------
+    # Panel A (Top-Left): MOD-02 Lag-1 Differential Phase Space
+    # -----------------------------------------------------
+    ax_a = fig.add_subplot(gs[0, 0])
     diff = df_pairs["Q_next"] - df_pairs["Q_t"]
-    ax_a.scatter(df_pairs[diff > 0]["Q_t"], df_pairs[diff > 0]["Q_next"], color="#1f77b4", s=8, alpha=0.5, label="Rising", zorder=3)
-    ax_a.scatter(df_pairs[diff < 0]["Q_t"], df_pairs[diff < 0]["Q_next"], color="#d62728", s=8, alpha=0.5, label="Falling", zorder=3)
+
+    ax_a.scatter(df_pairs[diff > 0]["Q_t"], df_pairs[diff > 0]["Q_next"], color="#1f77b4", s=9, alpha=0.5, label="Rising Limb (+dQ/dt)", zorder=3)
+    ax_a.scatter(df_pairs[diff < 0]["Q_t"], df_pairs[diff < 0]["Q_next"], color="#d62728", s=9, alpha=0.5, label="Falling Limb (-dQ/dt)", zorder=3)
+    ax_a.scatter(df_pairs[diff == 0]["Q_t"], df_pairs[diff == 0]["Q_next"], color="#808080", s=9, alpha=0.5, label="Equilibrium (dQ/dt = 0)", zorder=3)
     ax_a.plot([log_min, log_max], [log_min, log_max], color="#000000", lw=1.2, zorder=4)
 
     ax_a.set_xscale("log")
@@ -747,16 +752,15 @@ def run_mod12(df, date_col, value_col):
         a.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
     apply_standard_grid(ax_a)
-    ax_a.set_title("A  Lag-1 Differential Phase Space", loc="left", fontsize=11, fontweight="bold")
-    ax_a.set_xlabel("Q(t) [cfs]", fontsize=9, fontweight="bold")
-    ax_a.set_ylabel("Q(t+1) [cfs]", fontsize=9, fontweight="bold")
+    ax_a.set_title("A  MOD-02: Lag-1 Differential Phase Space", loc="left", fontsize=11, fontweight="bold", pad=22)
+    ax_a.legend(loc="lower left", bbox_to_anchor=(0.0, 1.01), ncol=3, frameon=False, fontsize=7.5)
+    ax_a.set_xlabel(f"Q(t) ({value_col}) [cfs]", fontsize=8.5, fontweight="bold")
+    ax_a.set_ylabel(f"Q(t+1) ({value_col}) [cfs]", fontsize=8.5, fontweight="bold")
 
     # -----------------------------------------------------
     # Panel B (Top-Right): MOD-03 Discrete Transition Matrix
     # -----------------------------------------------------
     ax_b = fig.add_subplot(gs[0, 1])
-    dec_min = int(np.floor(np.log10(min_v)))
-    dec_max = int(np.ceil(np.log10(max_v)))
     bins_log = np.arange(dec_min, dec_max + 0.25, 0.25)
     bins = 10 ** bins_log
     n_bins = len(bins) - 1
@@ -764,16 +768,25 @@ def run_mod12(df, date_col, value_col):
     counts, _, _ = np.histogram2d(df_pairs["Q_t"], df_pairs["Q_next"], bins=bins)
     ax_b.set_xscale("log")
     ax_b.set_yscale("log")
-    ax_b.set_xlim(10 ** dec_min, 10 ** dec_max)
-    ax_b.set_ylim(10 ** dec_min, 10 ** dec_max)
+    ax_b.set_xlim(log_min, log_max)
+    ax_b.set_ylim(log_min, log_max)
     ax_b.set_aspect("equal")
 
-    for a in [ax_b.xaxis, ax_b.yaxis]:
-        a.set_major_locator(ticker.LogLocator(base=10.0, numticks=8))
-        a.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
+    ax_b.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=8))
+    ax_b.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=8))
+    ax_b.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1, numticks=50))
+    ax_b.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1, numticks=50))
+
+    ax_b.xaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
+    ax_b.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
     apply_standard_grid(ax_b)
-    ax_b.plot([10 ** dec_min, 10 ** dec_max], [10 ** dec_min, 10 ** dec_max], color="#000000", lw=1.2, zorder=3)
+
+    for b in bins:
+        ax_b.axvline(b, color="#e0e0e0", lw=0.35, zorder=2)
+        ax_b.axhline(b, color="#e0e0e0", lw=0.35, zorder=2)
+
+    ax_b.plot([log_min, log_max], [log_min, log_max], color="#000000", lw=1.2, zorder=3)
 
     for i in range(n_bins):
         for j in range(n_bins):
@@ -782,26 +795,26 @@ def run_mod12(df, date_col, value_col):
                 xc = 10 ** ((bins_log[i] + bins_log[i + 1]) / 2.0)
                 yc = 10 ** ((bins_log[j] + bins_log[j + 1]) / 2.0)
                 if j > i:
-                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#1f77b4", fontweight="bold", fontsize=5, zorder=5)
+                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#1f77b4", fontweight="bold", fontsize=5.5, zorder=5)
                 elif j < i:
-                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#d62728", fontweight="bold", fontsize=5, zorder=5)
+                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#d62728", fontweight="bold", fontsize=5.5, zorder=5)
                 else:
-                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#000000", fontweight="bold", fontsize=5, zorder=5,
+                    ax_b.text(xc, yc, f"{cnt}", ha="center", va="center", color="#000000", fontweight="bold", fontsize=5.5, zorder=5,
                               bbox=dict(boxstyle="square,pad=0.1", facecolor="white", edgecolor="none", alpha=0.9))
 
-    ax_b.set_title("B  Discrete Transition Matrix (Raw Tallies)", loc="left", fontsize=11, fontweight="bold")
-    ax_b.set_xlabel("Q(t) [cfs]", fontsize=9, fontweight="bold")
-    ax_b.set_ylabel("Q(t+1) [cfs]", fontsize=9, fontweight="bold")
+    ax_b.set_title("B  MOD-03: Discrete Transition Matrix (Raw Counts)", loc="left", fontsize=11, fontweight="bold", pad=12)
+    ax_b.set_xlabel(f"Q(t) ({value_col}) [cfs]", fontsize=8.5, fontweight="bold")
+    ax_b.set_ylabel(f"Q(t+1) ({value_col}) [cfs]", fontsize=8.5, fontweight="bold")
 
     # -----------------------------------------------------
-    # Panel C (Bottom-Left): MOD-07 Chronological Raster
+    # Panel C (Bottom-Left): MOD-07 Chronological Raster Hydrograph (Exact Mirror)
     # -----------------------------------------------------
     ax_c = fig.add_subplot(gs[1, 0])
     pivot = df_clean.pivot(index="WaterYear", columns="Standard_DOWY", values=value_col)
     pivot = pivot.reindex(columns=range(1, 367)).sort_index(ascending=True)
     years = pivot.index.values
 
-    norm_c = LogNorm(vmin=10 ** dec_min, vmax=10 ** dec_max)
+    norm_c = LogNorm(vmin=log_min, vmax=log_max)
     mesh_c = ax_c.imshow(
         np.maximum(0.001, pivot.values),
         aspect="auto",
@@ -811,24 +824,42 @@ def run_mod12(df, date_col, value_col):
         extent=[0.5, 366.5, -0.5, len(years) - 0.5]
     )
 
+    # Dynamic leap-adjusted dividers matching MOD-07
     draw_leap_adjusted_dividers(ax_c, years, is_ranked=False)
 
+    # Y-axis Water Year ticks (5-year major intervals, 1-year minor)
     y_indices = np.arange(len(years))
-    major_mask = [(y % 10 == 0) for y in years]
+    major_mask = [(y % 5 == 0) for y in years]
     ax_c.set_yticks(y_indices[major_mask])
-    ax_c.set_yticklabels(years[major_mask], fontsize=8)
+    ax_c.set_yticklabels(years[major_mask], fontsize=7.5)
     ax_c.set_yticks(y_indices, minor=True)
+    ax_c.grid(True, which="major", axis="y", color="#000000", linestyle="-", lw=0.8, zorder=2)
+    ax_c.grid(False, which="minor", axis="y")
 
+    # X-axis Day of Water Year
     ax_c.set_xlim(0.5, 366.5)
     ax_c.set_xticks(range(50, 366, 50))
-    ax_c.set_title("C  Chronological Raster Hydrograph", loc="left", fontsize=11, fontweight="bold")
-    ax_c.set_xlabel("Day of Water Year", fontsize=9, fontweight="bold")
-    ax_c.set_ylabel("Water Year", fontsize=9, fontweight="bold")
+    ax_c.set_xticks(range(10, 366, 10), minor=True)
+    ax_c.tick_params(axis="x", labelsize=8)
+    ax_c.set_xlabel("Day of Water Year (Starting October 1)", fontsize=8.5, fontweight="bold")
+    ax_c.set_ylabel("Water Year (Chronological)", fontsize=8.5, fontweight="bold")
 
-    cbar_c = fig.colorbar(mesh_c, ax=ax_c, pad=0.02, shrink=0.85)
-    cbar_c.ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=6))
+    # Top Month Labels (Oct - Sep) with reduced font and zero tick length
+    month_centers = [16.0, 46.5, 77.0, 108.0, 138.0, 168.0, 198.5, 229.0, 259.5, 290.0, 321.0, 351.5]
+    ax_c_top = ax_c.twiny()
+    ax_c_top.set_xlim(ax_c.get_xlim())
+    ax_c_top.set_xticks(month_centers)
+    ax_c_top.set_xticklabels(MONTH_LABELS, fontsize=7.5, fontweight="bold")
+    ax_c_top.tick_params(length=0, pad=2)
+
+    # Exterior Base-10 Colorbar matching MOD-07
+    cbar_c = fig.colorbar(mesh_c, ax=ax_c, pad=0.02)
+    cbar_c.ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=8))
     cbar_c.ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
-    cbar_c.set_label("Discharge [cfs]", fontsize=8, fontweight="bold")
+    cbar_c.ax.tick_params(labelsize=7.5)
+    cbar_c.set_label(f"Discharge ({value_col}) [cfs]", fontsize=8, fontweight="bold")
+
+    ax_c.set_title("C  MOD-07: Chronological Raster Hydrograph", loc="left", fontsize=11, fontweight="bold", pad=20)
 
     # -----------------------------------------------------
     # Panel D (Bottom-Right): MOD-10 Annual Threshold Trends
@@ -847,13 +878,13 @@ def run_mod12(df, date_col, value_col):
     df_trends = pd.DataFrame(records).sort_values("WaterYear")
 
     ax_d.plot(df_trends["WaterYear"], df_trends["Q10"], color="#0000FF", lw=1.0, linestyle="-", alpha=0.7, zorder=2)
-    ax_d.scatter(df_trends["WaterYear"], df_trends["Q10"], color="#0000FF", s=20, label="Q10 (Exceeded 10%)", zorder=3)
+    ax_d.scatter(df_trends["WaterYear"], df_trends["Q10"], color="#0000FF", s=20, label="Q10 (High Flow: Exceeded 10%)", zorder=3)
 
     ax_d.plot(df_trends["WaterYear"], df_trends["Q50"], color="#FFD700", lw=1.0, linestyle="-", alpha=0.7, zorder=2)
-    ax_d.scatter(df_trends["WaterYear"], df_trends["Q50"], color="#FFD700", edgecolor="#000000", lw=0.4, s=20, label="Q50 (Median 50%)", zorder=3)
+    ax_d.scatter(df_trends["WaterYear"], df_trends["Q50"], color="#FFD700", edgecolor="#000000", lw=0.4, s=20, label="Q50 (Median Flow: Exceeded 50%)", zorder=3)
 
     ax_d.plot(df_trends["WaterYear"], df_trends["Q90"], color="#FF0000", lw=1.0, linestyle="-", alpha=0.7, zorder=2)
-    ax_d.scatter(df_trends["WaterYear"], df_trends["Q90"], color="#FF0000", s=20, label="Q90 (Exceeded 90%)", zorder=3)
+    ax_d.scatter(df_trends["WaterYear"], df_trends["Q90"], color="#FF0000", s=20, label="Q90 (Low Flow: Exceeded 90%)", zorder=3)
 
     ax_d.set_yscale("log")
     ax_d.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=8))
@@ -865,10 +896,10 @@ def run_mod12(df, date_col, value_col):
     ax_d.xaxis.set_minor_locator(ticker.MultipleLocator(1))
 
     apply_standard_grid(ax_d)
-    ax_d.set_title("D  Annual FDC Threshold Trends (Q10, Q50, Q90)", loc="left", fontsize=11, fontweight="bold")
-    ax_d.set_xlabel("Water Year (Chronological)", fontsize=9, fontweight="bold")
-    ax_d.set_ylabel("Discharge [cfs]", fontsize=9, fontweight="bold")
-    ax_d.legend(loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=3, frameon=False, fontsize=7.5)
+    ax_d.set_title("D  MOD-10: Annual FDC Threshold Trends (Q10, Q50, Q90)", loc="left", fontsize=11, fontweight="bold", pad=22)
+    ax_d.legend(loc="lower left", bbox_to_anchor=(0.0, 1.01), ncol=3, frameon=False, fontsize=7.5)
+    ax_d.set_xlabel("Water Year (Chronological)", fontsize=8.5, fontweight="bold")
+    ax_d.set_ylabel(f"Discharge ({value_col}) [cfs]", fontsize=8.5, fontweight="bold")
 
     fig.suptitle("MOD-12: Composite Hydroinformatics Dashboard", fontsize=13, fontweight="bold", y=0.99)
     return fig
