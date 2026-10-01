@@ -477,7 +477,7 @@ def run_mod08(df, date_col, value_col):
     mesh = ax.imshow(
         np.maximum(0.001, pivot.values),
         aspect="auto",
-        cmap=usgs_cmap_r,
+        cmap=usgs_cmap,
         norm=norm,
         origin="upper",
         extent=[0.5, 366.5, n_years + 0.5, 0.5]  # Inverts Y so 1 is at top, N at bottom
