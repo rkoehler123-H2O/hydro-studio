@@ -651,43 +651,68 @@ def run_mod10(df, date_col, value_col):
 
 
 def run_mod11(df, date_col, value_col):
-    """MOD-11: Discrete Transition Persistence Heatmap."""
+    """MOD-11: Annual FDC Volumetric Thresholds (Rank-Ordered)."""
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
-    df_pairs = df_clean[df_clean["valid_pair"]].copy()
 
-    # 10 Decile states
-    deciles = np.quantile(df_clean[value_col], np.linspace(0, 1, 11))
-    labels = [f"D{i+1}" for i in range(10)]
+    # 1. Calculate cumulative annual flow volume and rank years
+    wy_totals = df_clean.groupby("WaterYear")[value_col].sum()
+    # Rank 1 = largest volume (wettest), descending to smallest volume (driest)
+    ranked_wy = wy_totals.sort_values(ascending=False).index.values
 
-    df_pairs["state_t"] = pd.cut(df_pairs["Q_t"], bins=deciles, labels=labels, include_lowest=True)
-    df_pairs["state_next"] = pd.cut(df_pairs["Q_next"], bins=deciles, labels=labels, include_lowest=True)
+    # 2. Compute Q10, Q50, and Q90 for each ranked water year
+    records = []
+    for rank_idx, wy in enumerate(ranked_wy):
+        group = df_clean[df_clean["WaterYear"] == wy]
+        if len(group) < 30:  # Exclude fragmented records
+            continue
+        vals = group[value_col].values
+        q10 = np.percentile(vals, 90)  # Exceeded 10% of the time
+        q50 = np.percentile(vals, 50)  # Exceeded 50% of the time
+        q90 = np.percentile(vals, 10)  # Exceeded 90% of the time
+        records.append({
+            "VolumetricRank": rank_idx + 1,
+            "WaterYear": int(wy),
+            "Q10": q10,
+            "Q50": q50,
+            "Q90": q90,
+        })
 
-    matrix = pd.crosstab(df_pairs["state_t"], df_pairs["state_next"], normalize="index").reindex(index=labels, columns=labels, fill_value=0.0)
+    df_ranked = pd.DataFrame(records).sort_values("VolumetricRank")
+    n_ranks = len(df_ranked)
 
-    fig, ax = plt.subplots(figsize=(8, 7))
-    cax = ax.matshow(matrix.values, cmap="YlOrRd", vmin=0.0, vmax=1.0)
+    fig, ax = plt.subplots(figsize=(9, 6))
 
-    for i in range(10):
-        for j in range(10):
-            val = matrix.iloc[i, j]
-            color = "white" if val > 0.5 else "black"
-            ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=color, fontsize=8, fontweight="bold")
+    # 3. Plot annual threshold points with connecting lines across ranks
+    ax.plot(df_ranked["VolumetricRank"], df_ranked["Q10"], color="#0000FF", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_ranked["VolumetricRank"], df_ranked["Q10"], color="#0000FF", s=28, label="Q10 (High Flow: Exceeded 10%)", zorder=3)
 
-    ax.set_xticks(range(10))
-    ax.set_yticks(range(10))
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.plot(df_ranked["VolumetricRank"], df_ranked["Q50"], color="#FFD700", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_ranked["VolumetricRank"], df_ranked["Q50"], color="#FFD700", edgecolor="#000000", lw=0.5, s=28, label="Q50 (Median Flow: Exceeded 50%)", zorder=3)
 
-    cbar = fig.colorbar(cax, ax=ax, pad=0.04)
-    cbar.set_label("Transition Probability P(t+1 | t)", fontsize=10, fontweight="bold")
+    ax.plot(df_ranked["VolumetricRank"], df_ranked["Q90"], color="#FF0000", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_ranked["VolumetricRank"], df_ranked["Q90"], color="#FF0000", s=28, label="Q90 (Low Flow: Exceeded 90%)", zorder=3)
 
-    ax.set_xlabel("State Decile at t+1", fontsize=10, fontweight="bold")
-    ax.set_ylabel("State Decile at t", fontsize=10, fontweight="bold")
-    ax.set_title("MOD-11: Decile Transition Persistence Matrix", fontsize=12, fontweight="bold", pad=32)
+    # 4. Y-Axis: Logarithmic scaling with base-10 numerical labels
+    ax.set_yscale("log")
+    ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
+    ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1, numticks=100))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
+
+    # 5. X-Axis: Volumetric Rank (Rank 1 at left, increasing in +x direction)
+    ax.set_xlim(0.5, n_ranks + 0.5)
+    major_ticks = [1] + [r for r in range(10, n_ranks + 1, 10)]
+    ax.set_xticks(major_ticks)
+    ax.set_xticks(range(1, n_ranks + 1), minor=True)
+
+    apply_standard_grid(ax)
+
+    ax.set_xlabel("Annual Volume Rank (1 = Greatest Annual Volume)", fontsize=10, fontweight="bold")
+    ax.set_ylabel(f"Discharge ({value_col}) [cfs]", fontsize=10, fontweight="bold")
+    ax.set_title("MOD-11: Annual FDC Volumetric Thresholds (Rank-Ordered)", fontsize=12, fontweight="bold", pad=32)
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=3, frameon=False, fontsize=8.5)
 
     fig.tight_layout()
     return fig
-
 
 def run_mod12(df, date_col, value_col):
     """MOD-12: Composite Quad-Panel Hydrological Dashboard."""
