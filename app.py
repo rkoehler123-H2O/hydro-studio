@@ -838,7 +838,7 @@ def run_mod12(df, date_col, value_col):
 
     # X-axis Day of Water Year
     ax_c.set_xlim(0.5, 366.5)
-    ax_c.set_xticks(range(50, 366, 50))
+    ax_c.set_xticks(range(30, 366, 30))
     ax_c.set_xticks(range(10, 366, 10), minor=True)
     ax_c.tick_params(axis="x", labelsize=8)
     ax_c.set_xlabel("Day of Water Year (Starting October 1)", fontsize=8.5, fontweight="bold")
