@@ -388,48 +388,64 @@ def run_mod06(df, date_col, value_col):
     return fig
 
 
-def run_mod02(df, date_col, value_col):
-    """MOD-02: Lag-1 Streamflow Scatter Plot."""
+def run_mod07(df, date_col, value_col):
+    """MOD-07: Chronological Raster Hydrograph."""
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
-    df_pairs = df_clean[df_clean["valid_pair"]].copy()
+    pivot = df_clean.pivot(index="WaterYear", columns="Standard_DOWY", values=value_col)
+    pivot = pivot.reindex(columns=range(1, 367)).sort_index(ascending=True)
 
-    min_val = min(df_pairs["Q_t"].min(), df_pairs["Q_next"].min())
-    max_val = max(df_pairs["Q_t"].max(), df_pairs["Q_next"].max())
-    log_min = 10 ** np.floor(np.log10(min_val))
-    log_max = 10 ** np.ceil(np.log10(max_val))
+    fig, ax = plt.subplots(figsize=(12, 8))
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    vmin = 10 ** np.floor(np.log10(np.maximum(0.01, df_clean[value_col].min())))
+    vmax = 10 ** np.ceil(np.log10(df_clean[value_col].max()))
+    norm = LogNorm(vmin=vmin, vmax=vmax)
 
-    diff = df_pairs["Q_next"] - df_pairs["Q_t"]
-    rising = df_pairs[diff > 0]
-    falling = df_pairs[diff < 0]
-    eq = df_pairs[diff == 0]
+    years = pivot.index.values
 
-    # Plot data points below the identity line
-    ax.scatter(rising["Q_t"], rising["Q_next"], color="#1f77b4", s=14, alpha=0.5, label="Rising Limb (+dQ/dt)", zorder=3)
-    ax.scatter(falling["Q_t"], falling["Q_next"], color="#d62728", s=14, alpha=0.5, label="Falling Limb (-dQ/dt)", zorder=3)
-    ax.scatter(eq["Q_t"], eq["Q_next"], color="#808080", s=14, alpha=0.5, label="Equilibrium (dQ/dt = 0)", zorder=3)
+    # Pass untransformed matrix with LogNorm and reversed USGS colormap
+    mesh = ax.imshow(
+        np.maximum(0.001, pivot.values),
+        aspect="auto",
+        cmap=usgs_cmap_r,
+        norm=norm,
+        origin="lower",
+        extent=[0.5, 366.5, -0.5, len(years) - 0.5]
+    )
 
-    # 1:1 Identity Line
-    ax.plot([log_min, log_max], [log_min, log_max], color="#000000", lw=1.5, linestyle="-", label="1:1 Identity", zorder=4)
+    # Colorbar with base-10 standard integer/decimal notation
+    cbar = fig.colorbar(mesh, ax=ax, pad=0.03)
+    cbar.set_label(f"Discharge ({value_col}) [cfs]", fontsize=10, fontweight="bold")
+    cbar.ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
+    cbar.ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlim(log_min, log_max)
-    ax.set_ylim(log_min, log_max)
+    # Dynamic leap-year month dividers
+    draw_leap_adjusted_dividers(ax, years, is_ranked=False)
 
-    for a in [ax.xaxis, ax.yaxis]:
-        a.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
-        a.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
+    # Y-axis Water Year ticks (5-year increments)
+    y_indices = np.arange(len(years))
+    major_mask = [(y % 5 == 0) for y in years]
+    ax.set_yticks(y_indices[major_mask])
+    ax.set_yticklabels(years[major_mask], fontsize=9)
+    ax.set_yticks(y_indices, minor=True)
+    ax.grid(True, which="major", axis="y", color="#000000", linestyle="-", lw=0.8, zorder=2)
+    ax.grid(False, which="minor", axis="y")
 
-    apply_standard_grid(ax)
-    ax.set_xlabel(f"Q(t) ({value_col}) [cfs]", fontsize=10, fontweight="bold")
-    ax.set_ylabel(f"Q(t+1) ({value_col}) [cfs]", fontsize=10, fontweight="bold")
+    # X-axis Day of Water Year
+    ax.set_xlim(0.5, 366.5)
+    ax.set_xticks(range(50, 366, 50))
+    ax.set_xticks(range(10, 366, 10), minor=True)
+    ax.set_xlabel("Day of Water Year (Starting October 1)", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Water Year (Chronological)", fontsize=10, fontweight="bold")
 
-    # Stacked zero-incursion layout: Title clear above legend
-    ax.set_title("MOD-02: Lag-1 Streamflow Scatter Plot", fontsize=12, fontweight="bold", pad=38)
-    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.01), ncol=4, frameon=False, fontsize=8)
+    # Top Month Labels
+    month_centers = [16.0, 46.5, 77.0, 108.0, 138.0, 168.0, 198.5, 229.0, 259.5, 290.0, 321.0, 351.5]
+    ax_top = ax.twiny()
+    ax_top.set_xlim(ax.get_xlim())
+    ax_top.set_xticks(month_centers)
+    ax_top.set_xticklabels(MONTH_LABELS, fontsize=9, fontweight="bold")
+    ax_top.tick_params(length=0, pad=4)
 
+    ax.set_title("MOD-07: Chronological Raster Hydrograph", fontsize=12, fontweight="bold", pad=32)
     fig.tight_layout()
     return fig
 
