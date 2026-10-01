@@ -551,7 +551,7 @@ def run_mod09(df, date_col, value_col):
 
     fig, ax = plt.subplots(figsize=(9, 6))
 
-    cmap = plt.cm.get_cmap("Spectral_r")
+    cmap = plt.get_cmap("Spectral_r")
     norm = Normalize(vmin=min_wy, vmax=max_wy)
 
     # 3. Plot each annual flow duration curve
