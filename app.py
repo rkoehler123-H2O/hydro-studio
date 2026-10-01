@@ -595,44 +595,57 @@ def run_mod09(df, date_col, value_col):
 
 
 def run_mod10(df, date_col, value_col):
-    """MOD-10: Exceedance Probability Duration Matrix."""
+    """MOD-10: Annual FDC Threshold Trends (Chronological)."""
     df_clean = prepare_pairs_and_dowy(df, date_col, value_col)
-    percentiles = [10, 20, 30, 40, 50, 60, 70, 80, 90]
-    thresholds = np.percentile(df_clean[value_col], percentiles)
 
-    matrix = np.zeros((len(percentiles), 366))
-    for p_idx, thresh in enumerate(thresholds):
-        df_clean["exceed"] = (df_clean[value_col] >= thresh).astype(int)
-        grouped = df_clean.groupby("Standard_DOWY")["exceed"].mean()
-        for d in range(1, 367):
-            matrix[p_idx, d - 1] = grouped.get(d, 0.0) * 100.0
+    # 1. Compute annual Q10, Q50, and Q90 thresholds per Water Year
+    records = []
+    for wy, group in df_clean.groupby("WaterYear"):
+        if len(group) < 30:  # Exclude severely incomplete years
+            continue
+        vals = group[value_col].values
+        # Q10 = flow exceeded 10% of time (90th percentile)
+        # Q50 = flow exceeded 50% of time (50th percentile)
+        # Q90 = flow exceeded 90% of time (10th percentile)
+        q10 = np.percentile(vals, 90)
+        q50 = np.percentile(vals, 50)
+        q90 = np.percentile(vals, 10)
+        records.append({"WaterYear": int(wy), "Q10": q10, "Q50": q50, "Q90": q90})
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    mesh = ax.imshow(matrix, aspect="auto", cmap="Blues", origin="lower", extent=[0.5, 366.5, -0.5, len(percentiles) - 0.5])
+    df_trends = pd.DataFrame(records).sort_values("WaterYear")
 
-    cbar = fig.colorbar(mesh, ax=ax, pad=0.03)
-    cbar.set_label("Empirical Frequency of Exceedance (%)", fontsize=10, fontweight="bold")
+    fig, ax = plt.subplots(figsize=(9, 6))
 
-    # Pre-March and Post-March vertical dividers
-    for x in [31.5, 61.5, 92.5, 123.5, 152.5, 183.5, 213.5, 244.5, 274.5, 305.5, 336.5]:
-        ax.axvline(x, color="#000000", linestyle="--", lw=0.75, zorder=3)
+    # 2. Plot annual data points with connecting trend lines
+    ax.plot(df_trends["WaterYear"], df_trends["Q10"], color="#0000FF", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_trends["WaterYear"], df_trends["Q10"], color="#0000FF", s=28, label="Q10 (High Flow: Exceeded 10%)", zorder=3)
 
-    ax.set_yticks(range(len(percentiles)))
-    ax.set_yticklabels([f"P{p}" for p in percentiles], fontsize=9)
+    ax.plot(df_trends["WaterYear"], df_trends["Q50"], color="#FFD700", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_trends["WaterYear"], df_trends["Q50"], color="#FFD700", edgecolor="#000000", lw=0.5, s=28, label="Q50 (Median Flow: Exceeded 50%)", zorder=3)
 
-    ax.set_xlim(0.5, 366.5)
-    ax.set_xticks(range(50, 366, 50))
-    ax.set_xlabel("Day of Water Year (Starting October 1)", fontsize=10, fontweight="bold")
-    ax.set_ylabel("Discharge Quantile Threshold", fontsize=10, fontweight="bold")
+    ax.plot(df_trends["WaterYear"], df_trends["Q90"], color="#FF0000", lw=1.2, linestyle="-", alpha=0.7, zorder=2)
+    ax.scatter(df_trends["WaterYear"], df_trends["Q90"], color="#FF0000", s=28, label="Q90 (Low Flow: Exceeded 90%)", zorder=3)
 
-    month_centers = [16.0, 46.5, 77.0, 108.0, 138.0, 168.0, 198.5, 229.0, 259.5, 290.0, 321.0, 351.5]
-    ax_top = ax.twiny()
-    ax_top.set_xlim(ax.get_xlim())
-    ax_top.set_xticks(month_centers)
-    ax_top.set_xticklabels(MONTH_LABELS, fontsize=9, fontweight="bold")
-    ax_top.tick_params(length=0, pad=4)
+    # 3. Y-Axis: Logarithmic scaling with base-10 numerical labels
+    ax.set_yscale("log")
+    ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=10))
+    ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1, numticks=100))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}" if y < 1 else f"{int(y):,}"))
 
-    ax.set_title("MOD-10: Exceedance Probability Duration Matrix", fontsize=12, fontweight="bold", pad=32)
+    # 4. X-Axis: Chronological Water Years
+    min_wy = df_trends["WaterYear"].min()
+    max_wy = df_trends["WaterYear"].max()
+    ax.set_xlim(min_wy - 1, max_wy + 1)
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=10))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
+
+    apply_standard_grid(ax)
+
+    ax.set_xlabel("Water Year (Chronological)", fontsize=10, fontweight="bold")
+    ax.set_ylabel(f"Discharge ({value_col}) [cfs]", fontsize=10, fontweight="bold")
+    ax.set_title("MOD-10: Annual FDC Threshold Trends (Chronological)", fontsize=12, fontweight="bold", pad=32)
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=3, frameon=False, fontsize=8.5)
+
     fig.tight_layout()
     return fig
 
@@ -762,7 +775,7 @@ MODULE_REGISTRY = {
     "MOD-07: Chronological Raster Hydrograph": run_mod07,
     "MOD-08: Volumetric Raster Hydrograph": run_mod08,
     "MOD-09: Annual FDC Spaghetti Plot": run_mod09,
-    "MOD-10: Annual FDC Threshold Trends": run_mod10,
+    "MOD-10: Annual FDC Threshold Trends (Chronological)": run_mod10,
     "MOD-11: Annual FDC Volumetric Thresholds": run_mod11,
     "MOD-12: Composite Hydroinformatics Dashboard": run_mod12,
 }
