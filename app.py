@@ -434,7 +434,7 @@ def run_mod07(df, date_col, value_col):
     ax.set_xlim(0.5, 366.5)
     ax.set_xticks(range(30, 366, 30))
     ax.set_xticks(range(10, 366, 10), minor=True)
-    ax.set_xlabel("Day of Water Year (Starting October 1)", fontsize=10, fontweight="bold")
+    ax.set_xlabel("Day of Water Year", fontsize=10, fontweight="bold")
     ax.set_ylabel("Water Year (Chronological)", fontsize=10, fontweight="bold")
 
     # Top Month Labels
